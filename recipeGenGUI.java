@@ -1,4 +1,7 @@
+package foodGenPROJECT;
+
 import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.IOException;
@@ -12,6 +15,11 @@ public class recipeGenGUI extends recipeGen {
     private JButton filterByIngredientsButton;
 
     public recipeGenGUI() {
+        try {
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         generateRandomMealButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
