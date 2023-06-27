@@ -1,295 +1,102 @@
-import java.io.BufferedReader;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.URL;
-import java.net.URLConnection;
-import java.util.ArrayList;
-import java.util.Scanner;
+package foodGenPROJECT;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.ArrayList;
+
+//helper method to retrieve information from API call and add it to a string
+class HttpUtil {
+    public static String sendGet(String url) throws Exception {
+        HttpURLConnection connection = null;
+        try {
+            URL obj = new URL(url);
+            connection = (HttpURLConnection) obj.openConnection();
+            connection.setRequestMethod("GET");
+            BufferedReader in = new BufferedReader(new InputStreamReader(connection.getInputStream()));
+            String inputLine;
+            StringBuilder response = new StringBuilder();
+            while ((inputLine = in.readLine()) != null) {
+                response.append(inputLine);
+            }
+            in.close();
+            return response.toString();
+        } finally {
+            if (connection != null) {
+                connection.disconnect();
+            }
+        }
+    }
+}
 
 public class recipeGen {
 
-    //pick up component of a recipe from database "the meal" and insert to an arraylist
-    static int counter = 0;
-    static void printInstruction(String link, ArrayList<String> in) throws IOException {
-        counter = 0;
-        URL url = new URL(link);
-        URLConnection connection = url.openConnection();
-        InputStreamReader input = new InputStreamReader(connection.getInputStream());
-        String line = "";
-        String csvSplitBy = ",\"";
-        ArrayList<String> ingredientArr = new ArrayList<>();
-        int counter = 0;
-        BufferedReader br = new BufferedReader(input);
+    //pick up components of a recipe from database "the meal" and insert them to an arraylist
+    static void printInstruction(String URL, ArrayList<String> in) throws Exception {
+        String apiURL = "https://www.themealdb.com" + URL;
+        String response = HttpUtil.sendGet(apiURL);
+        JSONObject json = new JSONObject(response);
+        JSONArray mealArr = json.getJSONArray("meals");
+        JSONObject meals = mealArr.getJSONObject(0);
 
-        //format data from the database and locate keywords to identify the components of the recipe
-        try {
-            while ((line = br.readLine()) != null) {
-                String[] room = line.split(csvSplitBy);
-                for (String out : room){
-                    out = out.replace("\\r","");
-                    out = out.replace("\\n","");
-                    out = out.replace("u2013","'");
-                    out = out.replace("u2018","'");
-                    out = out.replace("u2019","'");
-                    out = out.replace("u00e9","'");
-                    out = out.replace("\\","");
-                    if(out.contains("strMeal") && !out.contains("strMealThumb")){
-                        out = out.substring(10,out.length()-1);
-                        in.add("Meal Name: "+out+"\n\n");
-                    }
-                    else if(out.contains("strMealThumb")){
-                        out = out.substring(15,out.length()-1);
-                        in.add("Dish Image: "+out+"\n\n");
-                    }
-                    else if(out.contains("strCategory")){
-                        out = out.substring(14,out.length()-1);
-                        in.add("Category: "+out+"\n\n");
-                    }
-                    else if(out.contains("strArea")){
-                        out = out.substring(10,out.length()-1);
-                        in.add("Region: "+out+"\n\n");
-                    }
-                    else if(out.contains("strInstructions")){
-                        out = out.substring(18,out.length()-1);
-                        out = out.replace(".",".\n");
-                        in.add("Instruction: \n"+out+"\n");
-                    }
-                    else if(out.contains("strYoutube")){
-                        out = out.substring(13,out.length()-1);
-                        in.add("Video Instruction: "+out+"\n\n");
-                    }
-                    else if(out.contains("strIngredient")) {
-                        if (out.substring(out.length() - 2).equals("\"\"")) {
-                            continue;
-                        }
-                        else {
-                            out = out.substring(17, out.length() - 1);
-                            out = out.replace("\"","");
-                            ingredientArr.add(out);
-                        }
-                    }
-                    else if(out.contains("strMeasure")) {
-                        if (counter > ingredientArr.size()-1) {
-                            continue;
-                        } else {
-                            out = out.substring(14, out.length() - 1);
-                            out = out.replace("\"","");
-                            if (counter == 0) {
-                                in.add("Ingredients List: \n");
-                            }
-                            in.add(ingredientArr.get(counter) + " - " + out+"\n");
-                            counter++;
-                        }
-
-                    }
-                    else if(out.contains("strSource")){
-                        out = out.substring(12,out.length()-1);
-                        in.add("\nRecipe Source: "+out+"\n");
-                    }
-                }
+        in.add("Meal Name: " + meals.getString("strMeal") + "\n\n");
+        in.add("Dish Image: " + meals.getString("strMealThumb") + "\n\n");
+        in.add("Category: " + meals.getString("strCategory") + "\n\n");
+        in.add("Region: " + meals.getString("strArea") + "\n\n");
+        in.add("Instruction: \n");
+        String instructions = meals.getString("strInstructions").replaceAll("\\.",".\n");
+        in.add(instructions + "\n\n");
+        in.add("Video Instruction: " + meals.getString("strYoutube") + "\n\n");
+        in.add("Ingredients List: \n");
+        for (int i = 1; i <= 20; i++) {
+            String ingredientKey = "strIngredient" + i;
+            String measureKey = "strMeasure" + i;
+            String temp = meals.getString(ingredientKey);
+            if (temp.equals("")){
+                break;
             }
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if (br != null) {
-                try {
-                    br.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+            if (!meals.isNull(ingredientKey) && !meals.isNull(measureKey)) {
+                String ingredient = meals.getString(ingredientKey);
+                String measure = meals.getString(measureKey);
+                in.add(ingredient + " - " + measure + "\n");
             }
         }
-
+        in.add("\n");
+        in.add("Recipe Source: " + meals.getString("strSource") + "\n");
     }
 
-    //locate each comma-separated values (csv) from the database then identify the keywords of interest
+    //locate objects using keyword from the database
     //and add them to the input arraylist in the parameter
-    static void fillArray(String url, String keyWord, ArrayList<String> arr, int subStart, int subEnd) throws IOException {
-        URL link = new URL(url);
-        URLConnection connection = link.openConnection();
-        InputStreamReader input = new InputStreamReader(connection.getInputStream());
-        BufferedReader br = null;
-        String line = "";
-        String csvSplitBy = ",";
-        ArrayList<String> ingredientArr = new ArrayList<>();
-        int counter = 0;
-        br = new BufferedReader(input);
+    static void fillArray(String apiURL, String keyWord, ArrayList<String> arr) throws Exception {
+        String response = HttpUtil.sendGet(apiURL);
+        JSONObject json = new JSONObject(response);
+        JSONArray mealArr = json.getJSONArray("meals");
+        int count = mealArr.length();
 
-        try {
-            while ((line = br.readLine()) != null) {
-                String[] room = line.split(csvSplitBy);
-                for (String out : room){
-                    out = out.replace("\\r","");
-                    out = out.replace("\\n","");
-                    out = out.replace("u2013","-");
-                    out = out.replace("\\","");
-                    if(out.contains(keyWord)){
-                        out = out.substring(subStart,out.length()-subEnd);
-                        out = out.replace("strArea\":\"","");
-                        out = out.replace("ategory\":\"","");
-                        out = out.replace("\"}","");
-                        arr.add(out);
-                    }
-                }
-            }
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if (br != null) {
-                try {
-                    br.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
+        for (int i = 0; i < count; i++) {
+            JSONObject object = mealArr.getJSONObject(i);
+            String temp = object.getString(keyWord);
+            arr.add(temp);
         }
     }
 
+    //get list of meals from URL
+    static void getList(String URL, ArrayList<String> in) throws Exception {
+        String apiURL = "https://www.themealdb.com" + URL;
+        String response = HttpUtil.sendGet(apiURL);
+        JSONObject json = new JSONObject(response);
+        JSONArray mealArr = json.getJSONArray("meals");
+        int count = mealArr.length();
 
-    //filter the recipes by their ingredients then add the recipes to an input arraylist
-    static void filterByIngredients(String ingredient, ArrayList<String> in) throws IOException {
-        URL url = new URL("https://www.themealdb.com/api/json/v1/1/filter.php?i="+ingredient);
-        URLConnection connection = url.openConnection();
-        InputStreamReader input = new InputStreamReader(connection.getInputStream());
-        BufferedReader br = null;
-        String line = "";
-        String csvSplitBy = ",";
-        ArrayList<String> ingredientArr = new ArrayList<>();
-        br = new BufferedReader(input);
-        try {
-            while ((line = br.readLine()) != null) {
-                String temp = null;
-                String[] room = line.split(csvSplitBy);
-                for (String out : room){
-                    out = out.replace("\\r","");
-                    out = out.replace("\\n","");
-                    out = out.replace("u2013","-");
-                    out = out.replace("\\","");
-                    if(out.contains("strMeal") && !out.contains("strMealThumb")){
-                        out = out.substring(12,out.length()-1);
-                        out = out.replace("strMeal\":\"","");
-                        temp = out;
-                    }
-                    if(out.contains("idMeal")){
-                        out = out.substring(10,out.length()-2);
-                        out = out.replace("\"}","");
-                        out = out.replace("]","");
-                        in.add(temp+" - ID:"+out+"\n");
-                    }
-
-                }
-            }
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if (br != null) {
-                try {
-                    br.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
+        for (int i = 0; i < count; i++) {
+            JSONObject object = mealArr.getJSONObject(i);
+            String meal = object.getString("strMeal");
+            String id = object.getString("idMeal");
+            in.add(meal+" - ID:"+id+"\n");
         }
     }
-
-    //filter the recipes by their areas then add the recipes to an input arraylist
-    static void filterByArea(String area, ArrayList<String> in) throws IOException {
-        URL url = new URL("https://www.themealdb.com/api/json/v1/1/filter.php?a="+area);
-        URLConnection connection = url.openConnection();
-        InputStreamReader input = new InputStreamReader(connection.getInputStream());
-        BufferedReader br = null;
-        String line = "";
-        String csvSplitBy = ",";
-        ArrayList<String> ingredientArr = new ArrayList<>();
-        br = new BufferedReader(input);
-        try {
-            while ((line = br.readLine()) != null) {
-                String temp = null;
-                String[] room = line.split(csvSplitBy);
-                for (String out : room){
-                    out = out.replace("\\r","");
-                    out = out.replace("\\n","");
-                    out = out.replace("u2013","-");
-                    out = out.replace("\\","");
-                    if(out.contains("strMeal") && !out.contains("strMealThumb")){
-                        out = out.substring(12,out.length()-1);
-                        out = out.replace("strMeal\":\"","");
-                        temp = out;
-                    }
-                    if(out.contains("idMeal")){
-                        out = out.substring(10,out.length()-2);
-                        out = out.replace("\"}","");
-                        in.add(temp+" - ID:"+out+"\n");
-                    }
-                }
-            }
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if (br != null) {
-                try {
-                    br.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
-    //filter the recipes by their category then add the recipes to an input arraylist
-    static void filterByCategory(String category, ArrayList<String> in) throws IOException {
-        URL url = new URL("https://www.themealdb.com/api/json/v1/1/filter.php?c="+category);
-        URLConnection connection = url.openConnection();
-        InputStreamReader input = new InputStreamReader(connection.getInputStream());
-        BufferedReader br = null;
-        String line = "";
-        String csvSplitBy = ",";
-        ArrayList<String> ingredientArr = new ArrayList<>();
-        br = new BufferedReader(input);
-        try {
-            while ((line = br.readLine()) != null) {
-                String temp = null;
-                String[] room = line.split(csvSplitBy);
-                for (String out : room){
-                    out = out.replace("\\r","");
-                    out = out.replace("\\n","");
-                    out = out.replace("u2013","-");
-                    out = out.replace("\\","");
-                    if(out.contains("strMeal") && !out.contains("strMealThumb")){
-                        out = out.substring(12,out.length()-1);
-                        out = out.replace("strMeal\":\"","");
-                        temp = out;
-                    }
-                    if(out.contains("idMeal")){
-                        out = out.substring(10,out.length()-2);
-                        out = out.replace("\"}","");
-                        in.add(temp+" - ID:"+out+"\n");
-                    }
-                }
-            }
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        } finally {
-            if (br != null) {
-                try {
-                    br.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-    }
-
 }
